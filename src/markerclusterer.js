@@ -162,7 +162,12 @@ function MarkerClusterer(map, opt_markers, opt_options) {
   // Add the map event listeners
   var that = this;
   google.maps.event.addListener(this.map_, 'zoom_changed', function() {
+    // Determines map type and prevent illegal zoom levels
     var zoom = that.map_.getZoom();
+    var minZoom = that.map_.minZoom || 0;
+    var maxZoom = Math.min(that.map_.maxZoom || 100,
+                         that.map_.mapTypes[that.map_.getMapTypeId()].maxZoom);
+    zoom = Math.min(Math.max(zoom,minZoom),maxZoom);
 
     if (that.prevZoom_ != zoom) {
       that.prevZoom_ = zoom;
@@ -175,7 +180,7 @@ function MarkerClusterer(map, opt_markers, opt_options) {
   });
 
   // Finally, add the markers
-  if (opt_markers && opt_markers.length) {
+  if (opt_markers && (opt_markers.length || Object.keys(opt_markers).length)) {
     this.addMarkers(opt_markers, false);
   }
 }
@@ -188,8 +193,7 @@ function MarkerClusterer(map, opt_markers, opt_options) {
  * @private
  */
 MarkerClusterer.prototype.MARKER_CLUSTER_IMAGE_PATH_ =
-    'https://google-maps-utility-library-v3.googlecode.com/svn/trunk/markerclusterer/' +
-    'images/m';
+    '//raw.githubusercontent.com/googlemaps/js-marker-clusterer/gh-pages/images/m';
 
 
 /**
@@ -400,8 +404,14 @@ MarkerClusterer.prototype.getCalculator = function() {
  * @param {boolean=} opt_nodraw Whether to redraw the clusters.
  */
 MarkerClusterer.prototype.addMarkers = function(markers, opt_nodraw) {
+  if (markers.length) {
   for (var i = 0, marker; marker = markers[i]; i++) {
-    this.pushMarkerTo_(marker);
+      this.pushMarkerTo_(marker);
+    }
+  } else if (Object.keys(markers).length) {
+    for (var marker in markers) {
+      this.pushMarkerTo_(markers[marker]);
+    }
   }
   if (!opt_nodraw) {
     this.redraw();
@@ -790,6 +800,15 @@ MarkerClusterer.prototype.createClusters_ = function() {
   }
 };
 
+// BEGIN MODIFICATION
+/**
+ * custom click method to overide in the init
+ */
+MarkerClusterer.prototype.onClick = function() {
+    return true;
+};
+// END MODIFICATION
+
 
 /**
  * A cluster that contains markers.
@@ -1051,6 +1070,16 @@ ClusterIcon.prototype.triggerClusterClick = function(event) {
   // Trigger the clusterclick event.
   google.maps.event.trigger(markerClusterer, 'clusterclick', this.cluster_, event);
 
+   // BEGIN MODIFICATION
+   var zoom = this.map_.getZoom();
+   var maxZoom = markerClusterer.getMaxZoom();
+   // if we have reached the maxZoom and there is more than 1 marker in this cluster
+   // use our onClick method to popup a list of options
+   if (zoom >= maxZoom && this.cluster_.markers_.length > 1) {
+      return markerClusterer.onClickZoom(this);
+   }
+   // END MODIFICATION
+
   if (markerClusterer.isZoomOnClick()) {
     // Zoom into the cluster.
     this.map_.fitBounds(this.cluster_.getBounds());
@@ -1302,3 +1331,12 @@ Cluster.prototype['getMarkers'] = Cluster.prototype.getMarkers;
 ClusterIcon.prototype['onAdd'] = ClusterIcon.prototype.onAdd;
 ClusterIcon.prototype['draw'] = ClusterIcon.prototype.draw;
 ClusterIcon.prototype['onRemove'] = ClusterIcon.prototype.onRemove;
+
+Object.keys = Object.keys || function(o) {
+    var result = [];
+    for(var name in o) {
+        if (o.hasOwnProperty(name))
+          result.push(name);
+    }
+    return result;
+};
